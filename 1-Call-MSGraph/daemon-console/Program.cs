@@ -77,10 +77,14 @@ namespace daemon_console
             string[] scopes = new string[] { $"{config.ApiUrl}.default" }; // Generates a scope -> "https://graph.microsoft.com/.default"
 
             // Call MS graph using the Graph SDK
-            await CallMSGraphUsingGraphSDK(app, scopes);
+            //await CallMSGraphUsingGraphSDK(app, scopes);
 
             // Call MS Graph REST API directly
-            await CallMSGraph(config, app, scopes);
+            //await CallMSGraph(config, app, scopes);
+
+            await ListContacts(app, scopes);
+            await ListUsers(app, scopes);
+            await CreateContact(app, scopes);
         }
 
         /// <summary>
@@ -131,8 +135,6 @@ namespace daemon_console
         {
             // Prepare an authenticated MS Graph SDK client
             GraphServiceClient graphServiceClient = GetAuthenticatedGraphClient(app, scopes);
-
-
             List<User> allUsers = new List<User>();
 
             try
@@ -145,10 +147,78 @@ namespace daemon_console
             {
                 Console.WriteLine("We could not retrieve the user's list: " + $"{e}");
             }
-
         }
 
-  
+        private static async Task ListContacts(IConfidentialClientApplication app, string[] scopes)
+        {
+            GraphServiceClient client = GetAuthenticatedGraphClient(app, scopes);
+            
+            try
+            {
+                var contacts = await client.Contacts.Request().GetAsync();
+                Console.WriteLine($"Found {contacts.Count()} contacts in the tenant");
+
+                foreach (var contact in contacts)
+                {
+                    Console.WriteLine($"{contact.GivenName} {contact.Surname}: {contact.Mail}");
+                }
+            }
+            catch (ServiceException ex)
+            {
+                Console.WriteLine($"Could not retrieve contacts: {ex}");
+            }
+        }
+
+        private static async Task ListUsers(IConfidentialClientApplication app, string[] scopes)
+        {
+            GraphServiceClient client = GetAuthenticatedGraphClient(app, scopes);
+
+            try
+            {
+                var users = await client.Users.Request().GetAsync();
+                Console.WriteLine($"Found {users.Count} in the tenant");
+
+                foreach (var user in users)
+                {
+                    Console.WriteLine($"{user.DisplayName} [{user.UserPrincipalName}]: {user.Id}");
+                }
+            }
+            catch (ServiceException ex)
+            {
+                Console.WriteLine($"Could not retrieve contacts: {ex}");
+            }
+        }
+
+        private static async Task CreateContact(IConfidentialClientApplication app, string[] scopes)
+        {
+            GraphServiceClient client = GetAuthenticatedGraphClient(app, scopes);
+
+            try
+            {
+                //var contact = new OrgContact
+                //{
+                //    GivenName = "Max",
+                //    Surname = "Mustermann",
+                //    Mail = "max.mustermann@mustermann.at"
+                //};
+
+                //await client.Contacts.Request().AddAsync(contact);
+
+
+                var contact = new Contact { GivenName = "Max", Surname = "Mustermann" };
+                var mail = new EmailAddress { Address = "max.mustermann@mustermann.at" };
+                var mails = new List<EmailAddress>() { mail };
+                contact.EmailAddresses = mails;
+                
+                await client.Users["my.user@test.at"].Contacts.Request().AddAsync(contact);
+            }
+            catch (ServiceException ex)
+            {
+                Console.WriteLine($"Could not retrieve contacts: {ex}");
+            }
+        }
+
+
         /// <summary>
         /// An example of how to authenticate the Microsoft Graph SDK using the MSAL library
         /// </summary>
@@ -200,18 +270,17 @@ namespace daemon_console
         {
             string clientSecretPlaceholderValue = "[Enter here a client secret for your application]";
 
-            if (!String.IsNullOrWhiteSpace(config.ClientSecret) && config.ClientSecret != clientSecretPlaceholderValue)
+            if (!string.IsNullOrWhiteSpace(config.ClientSecret) && config.ClientSecret != clientSecretPlaceholderValue)
             {
                 return true;
             }
 
-            else if (config.Certificate != null)
+            if (config.Certificate != null)
             {
                 return false;
             }
 
-            else
-                throw new Exception("You must choose between using client secret or certificate. Please update appsettings.json file.");
+            throw new Exception("You must choose between using client secret or certificate. Please update appsettings.json file.");
         }
     }
 }
